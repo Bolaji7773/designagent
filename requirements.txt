@@ -1,0 +1,22 @@
+# AI — universal provider interface
+litellm>=1.40.0
+
+# Telegram bot
+python-telegram-bot>=21.0
+
+# Local web UI
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+jinja2>=3.1.4
+
+# Environment / config
+python-dotenv>=1.0.1
+
+# Image processing
+Pillow>=10.3.0
+
+# HTTP requests (Figma, Penpot)
+httpx>=0.27.0
+
+# System tray
+pystray>=0.19.5

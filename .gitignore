@@ -1,0 +1,45 @@
+code .gitignore
+```
+
+Paste this in exactly, then **Ctrl+S** to save:
+```
+# SECRETS — never push these
+.env
+.env.local
+*.key
+secrets.json
+
+# LOCAL DATA — stays on your machine
+output/
+config/agent.db
+config/brand_kit/
+scripts/generated/
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+build/
+dist/
+*.egg-info/
+.eggs/
+venv/
+.venv/
+env/
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Logs
+logs/
+*.log
+
+# PyInstaller
+*.spec

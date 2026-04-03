@@ -85,27 +85,62 @@ async def cmd_design(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    await update.message.reply_text("Got it. Working on it... 🎨")
+    await update.message.reply_text("Got it. Planning your design... 🎨")
 
-    # For now — AI interprets the prompt and describes the design plan
-    # Phase 1 completion: this will fire the actual design app driver
     try:
-        result = await ask_async(
-            prompt=prompt,
-            system=(
-                "You are an expert graphic designer AI assistant. "
-                "The user wants you to design something. "
-                "Describe clearly what you would create: layout, colors, "
-                "typography, and key elements. Be specific and professional. "
-                "Keep it under 200 words."
-            )
+        # Step 1 — AI plans the design
+        from agent.planner import plan_design
+        plan = await plan_design(prompt)
+
+        if not plan:
+            await update.message.reply_text("Failed to generate design plan. Try again.")
+            return
+
+        await update.message.reply_text(
+            f"✅ Plan ready.\n"
+            f"Title: {plan.get('title')}\n"
+            f"Style: {plan.get('style')}\n"
+            f"Colors: {plan.get('color_palette', {}).get('background')} bg\n\n"
+            f"Opening CorelDRAW... 🖥️"
         )
-        await update.message.reply_text(f"🎨 Design plan:\n\n{result}\n\n"
-                                        f"_(Driver execution coming in next build)_",
-                                        parse_mode="Markdown")
+
+        # Step 2 — Execute in CorelDRAW
+        from drivers.coreldraw import run_design, is_available
+        if not is_available():
+            await update.message.reply_text(
+                "CorelDRAW driver not available on this machine.\n"
+                "Make sure pywin32 is installed."
+            )
+            return
+
+        import asyncio
+        result = await asyncio.to_thread(run_design, plan)
+
+        if result["success"]:
+            method = result.get("method")
+
+            # COM worked — send PNG preview directly
+            if method == "COM":
+                output_png = result["output_png"]
+                with open(output_png, "rb") as img:
+                    await update.message.reply_photo(
+                        photo=img,
+                        caption=f"🎨 {plan.get('title')}\nSaved to: {result['job_folder']}"
+                    )
+
+            # VBA fallback — give manual instructions
+            elif method == "VBA_MANUAL":
+                await update.message.reply_text(
+                    f"📄 Macro ready. Run it manually in CorelDRAW:\n\n"
+                    f"{result.get('manual_step')}"
+                )
+        else:
+            await update.message.reply_text(
+                f"❌ CorelDRAW error:\n{result['error']}"
+            )
+
     except Exception as e:
         await update.message.reply_text(f"Something went wrong: {e}")
-
 
 # ── Image handler ─────────────────────────────────────────────
 # User sends a photo with a caption
@@ -151,7 +186,15 @@ async def handle_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ── Start bot ─────────────────────────────────────────────────
 
 async def start_bot():
-    app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
+    app = (
+        ApplicationBuilder()
+        .token(TELEGRAM_BOT_TOKEN)
+        .connect_timeout(60)
+        .read_timeout(60)
+        .write_timeout(60)
+        .pool_timeout(60)
+        .build()
+    )
 
     app.add_handler(CommandHandler("start",  cmd_start))
     app.add_handler(CommandHandler("status", cmd_status))
@@ -161,15 +204,15 @@ async def start_bot():
 
     print("  📱 Telegram bot listening...")
 
-    # Initialize and start manually — avoids event loop conflict
     await app.initialize()
     await app.start()
-    await app.updater.start_polling()
+    await app.updater.start_polling(
+        drop_pending_updates=True,
+        allowed_updates=["message"],
+    )
 
-    # Keep running until cancelled
     await asyncio.Event().wait()
 
-    # Clean shutdown
     await app.updater.stop()
     await app.stop()
     await app.shutdown()
